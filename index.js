@@ -1,4 +1,4 @@
-const { MongoClient, ServerApiVersion } = require('mongodb');
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
@@ -32,6 +32,7 @@ const client = new MongoClient(uri, {
 // all collactions
       const userCollection = client.db("booking").collection("users");
       const adminUserCollection = client.db("bookingAdmin").collection("adminusers");
+      const busInfoCollection = client.db("bookingAdmin").collection("bus");
 //
 
 //admin users api
@@ -72,6 +73,28 @@ app.post('/users', async (req,res) => {
     }
     const result = await userCollection.insertOne(user)
     res.send(result);
+})
+//
+
+//bus Newdata post
+app.post('/bus',async (req,res)=>{
+  const bus = req.body;
+const result = await busInfoCollection.insertOne(bus)
+res.send(result)
+})
+//
+//And Bus Data Get
+app.get('/businfo',async (req,res) =>{
+  const result = await busInfoCollection.find().toArray();
+  res.send(result)
+})
+//
+//bus info Delete Api
+app.delete('/businfo/:id',async(req,res)=>{
+  const id = req.params.id;
+  const query = {_id: new ObjectId(id)}
+  const result = await busInfoCollection.deleteOne(query)
+  res.send(result);
 })
 //
 
