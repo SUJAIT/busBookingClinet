@@ -4,7 +4,7 @@ const cors = require('cors');
 require('dotenv').config();
 const app = express();
 const port = process.env.PORT || 5000;
-
+const stripe = require('stripe')('sk_test_51L27WdEDv8zcGvWbAQp2KHPYrspzm0l0AfRWxtKTday7OXyEiOqWIyGOUZlwQxaNPoymmaGylYOSpEj6KJlettO800mvUniqbf')
 
 // middleware start
 app.use(cors());
@@ -62,6 +62,8 @@ app.get('/users',async (req,res) =>{
     res.send(result)
 })
 
+//
+
 //user information crate and send api 
 app.post('/users', async (req,res) => {
     const user = req.body;
@@ -89,6 +91,14 @@ app.get('/businfo',async (req,res) =>{
   res.send(result)
 })
 //
+//
+app.get('/businfo/:id',async(req,res)=>{
+  const id = req.params.id;
+  const query = {_id:new ObjectId(id)};
+  const result = await busInfoCollection.findOne(query);
+  res.send(result)
+})
+
 //bus info Delete Api
 app.delete('/businfo/:id',async(req,res)=>{
   const id = req.params.id;
@@ -100,6 +110,114 @@ app.delete('/businfo/:id',async(req,res)=>{
 
 
 
+
+//search
+
+// app.post('/search', async (req, res) => {
+//   const { from, to, busType, departureDate } = req.body;
+
+//   const query = {};
+//   if (from) query.from = from;
+//   if (to) query.to = to;
+//   if (busType) query.busType = busType;
+//   if (departureDate) {
+//     const startOfDay = new Date(departureDate).setHours(0, 0, 0, 0);
+//     const endOfDay = new Date(departureDate).setHours(23, 59, 59, 999);
+//     query.departureDate = { $gte: new Date(startOfDay), $lte: new Date(endOfDay) };
+//   }
+
+//   try {
+//     const results = await bus.find(query);
+//     res.json(results);
+//   } catch (error) {
+//     res.status(500).send('Error retrieving data');
+//   }
+// });
+app.post('/search', async (req, res) => {
+  const { from, to, busType, departureDate } = req.body;
+
+  // Build the query dynamically
+  const query = {};
+  if (from) query.from = new RegExp(from, 'i'); // Case-insensitive search
+  if (to) query.to = new RegExp(to, 'i');
+  if (busType && busType !== 'ALL') query.busType = busType;
+  if (departureDate) {
+    const startOfDay = new Date(departureDate).setHours(0, 0, 0, 0);
+    const endOfDay = new Date(departureDate).setHours(23, 59, 59, 999);
+    query.departureDate = { $gte: new Date(startOfDay), $lte: new Date(endOfDay) };
+  }
+
+  try {
+    const results = await busInfoCollection.find(query).toArray();
+    res.send(results);
+  } catch (error) {
+    res.status(500).send({ message: 'Error retrieving search results', error });
+  }
+});
+
+
+///
+//payment intent
+// app.post('/create-payment-intent', async (req, res)=>{
+//   const {price} = req.body;
+//   const amount = parseInt(price * 1000);
+//   const paymentIntent = await stripe.paymentIntents.create({
+//     amount: amount,
+//     currency: 'usd',
+//     payment_method_types: ['card']
+//   });
+//   res.send({
+//     clientSecret: paymentIntent.client_secret
+//   })
+// })
+
+//payment api
+
+// app.post('/create-checkout-session', async (req, res)=>{
+// const product = req.body;
+ 
+// console.log(product)
+// // const session = await stripe.checkout.sessions.create({
+// //   payment_method_types:["card"],
+// //   line_items:,
+// //   mode:"payment",
+// //   success_url:"http://localhost:3000/success",
+// //   cancel_url:"http://localhost:3000/cancel"
+// // })
+
+// })
+
+app.post('/create-checkout-session', async (req, res) => {
+  const {products} = req.body;
+  
+console.log(products)
+ 
+    const lineItems = products.map((product) => ({
+      price_data: {
+        currency: 'usd',
+        product_data: {
+          name: `${product.destinationFrom} to ${product.destinationTo} (${product.seatType})`,
+        },
+        unit_amount: product.totalPrice * 100, // Convert to cents
+      },
+      quantity: 1, // Assuming 1 quantity per product
+    }));
+
+    // Create a checkout session
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
+      line_items: lineItems,
+      mode: 'payment',
+      success_url: `http://localhost:5173/success`,
+      cancel_url: `http://localhost:5173/cancel`,
+    });
+
+res.json({id: session.id})
+  
+});
+
+
+//
       // Send a ping to confirm a successful connection
       await client.db("admin").command({ ping: 1 });
       console.log("Pinged your deployment. You successfully connected to MongoDB!");
