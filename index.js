@@ -33,7 +33,8 @@ const client = new MongoClient(uri, {
       const userCollection = client.db("booking").collection("users");
       const adminUserCollection = client.db("bookingAdmin").collection("adminusers");
       const busInfoCollection = client.db("bookingAdmin").collection("bus");
-//
+      const paymentCollection = client.db("booking").collection("payments");
+      //
 
 //admin users api
 app.get('/adminusers',async(req,res) =>{
@@ -156,68 +157,116 @@ app.post('/search', async (req, res) => {
 });
 
 
-///
-//payment intent
-// app.post('/create-payment-intent', async (req, res)=>{
-//   const {price} = req.body;
-//   const amount = parseInt(price * 1000);
-//   const paymentIntent = await stripe.paymentIntents.create({
-//     amount: amount,
-//     currency: 'usd',
-//     payment_method_types: ['card']
-//   });
-//   res.send({
-//     clientSecret: paymentIntent.client_secret
-//   })
-// })
 
-//payment api
-
-// app.post('/create-checkout-session', async (req, res)=>{
-// const product = req.body;
- 
-// console.log(product)
-// // const session = await stripe.checkout.sessions.create({
-// //   payment_method_types:["card"],
-// //   line_items:,
-// //   mode:"payment",
-// //   success_url:"http://localhost:3000/success",
-// //   cancel_url:"http://localhost:3000/cancel"
-// // })
-
-// })
+//////
 
 app.post('/create-checkout-session', async (req, res) => {
-  const {products} = req.body;
-  
-console.log(products)
- 
-    const lineItems = products.map((product) => ({
+  const { products } = req.body;
+
+  console.log(products);
+
+  const lineItems = products.map((product) => ({
       price_data: {
-        currency: 'usd',
-        product_data: {
-          name: `${product.destinationFrom} to ${product.destinationTo} (${product.seatType})`,
-        },
-        unit_amount: product.totalPrice * 100, // Convert to cents
+          currency: 'usd',
+          product_data: {
+              name: `${product.destinationFrom} to ${product.destinationTo} (${product.seatType})`,
+          },
+          unit_amount: product.totalPrice * 100, // Convert to cents
       },
       quantity: 1, // Assuming 1 quantity per product
-    }));
+  }));
 
-    // Create a checkout session
-    const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
-      line_items: lineItems,
-      mode: 'payment',
-      success_url: `http://localhost:5173/success`,
-      cancel_url: `http://localhost:5173/cancel`,
-    });
+  try {
+      // Create a checkout session
+      const session = await stripe.checkout.sessions.create({
+          payment_method_types: ['card'],
+          line_items: lineItems,
+          mode: 'payment',
+          success_url: `http://localhost:5173/success`,
+          cancel_url: `http://localhost:5173/cancel`,
+      });
 
-res.json({id: session.id})
-  
+      // Prepare the payment object to save to the database
+      const payment = {
+          userEmail: products[0]?.userEmail,
+          userName: products[0]?.userName,
+          totalPrice: products.reduce((sum, product) => sum + product.totalPrice, 0),
+          selectedSeats: products.map((product) => product.selectedSeats).flat(),
+          transactionId: session.id,
+          paymentStatus: 'Pending', // Mark as pending until payment is confirmed
+          timestamp: new Date(),
+      };
+
+      // Save payment details to the database
+      const result = await paymentCollection.insertOne(payment);
+
+      console.log('Payment details saved to database:', result);
+
+      // Respond with session ID for the frontend
+      res.json({ id: session.id });
+
+  } catch (error) {
+      console.error('Error creating checkout session or saving payment:', error);
+      res.status(500).send({ message: 'Failed to create checkout session', error });
+  }
 });
 
 
+////////
+
+
+// app.post('/create-checkout-session', async (req, res) => {
+//   const {products} = req.body;
+
+  
+// console.log(products)
+ 
+//     const lineItems = products.map((product) => ({
+//       price_data: {
+//         currency: 'usd',
+//         product_data: {
+//           name: `${product.destinationFrom} to ${product.destinationTo} (${product.seatType})`,
+//         },
+//         unit_amount: product.totalPrice * 100, // Convert to cents
+//       },
+//       quantity: 1, // Assuming 1 quantity per product
+//     }));
+
+//     // Create a checkout session
+//     const session = await stripe.checkout.sessions.create({
+//       payment_method_types: ['card'],
+//       line_items: lineItems,
+//       mode: 'payment',
+//       success_url: `http://localhost:5173/success`,
+//       cancel_url: `http://localhost:5173/cancel`,
+//     });
+
+// res.json({id: session.id})
+  
+// });
 //
+
+
+
+
+//payment 
+// API to save payment details after successful payment
+// app.post('/payments', async (req, res) => {
+//   const payment = req.body;
+
+//   console.log("pay deatails",payment)
+
+//   try {
+//     // Insert payment details into the database
+//     const result = await paymentCollection.insertOne(payment);
+//     res.status(200).send({ message: 'Payment saved successfully', result });
+//   } catch (error) {
+//     console.error('Error saving payment data:', error);
+//     res.status(500).send({ message: 'Error saving payment data', error });
+//   }
+// });
+// paymentDB
+
       // Send a ping to confirm a successful connection
       await client.db("admin").command({ ping: 1 });
       console.log("Pinged your deployment. You successfully connected to MongoDB!");
