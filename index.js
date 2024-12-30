@@ -188,13 +188,20 @@ app.post('/create-checkout-session', async (req, res) => {
 
       // Prepare the payment object to save to the database
       const payment = {
-          userEmail: products[0]?.userEmail,
-          userName: products[0]?.userName,
-          totalPrice: products.reduce((sum, product) => sum + product.totalPrice, 0),
-          selectedSeats: products.map((product) => product.selectedSeats).flat(),
-          transactionId: session.id,
-          paymentStatus: 'Pending', // Mark as pending until payment is confirmed
-          timestamp: new Date(),
+        userEmail: products[0]?.userEmail,
+        userName: products[0]?.userName,
+        totalPrice: products.reduce((sum, product) => sum + product.totalPrice, 0),
+        selectedSeats: products.flatMap((product) => product.selectedSeats),
+        journeyStartDate: products[0]?.journeyStartDate,
+        journeyEndDate: products[0]?.journeyEndDate,
+        seatType: products[0]?.seatType,
+        journeyStartTime: products[0]?.journeyStartTime,
+        journeyEndTime: products[0]?.journeyEndTime,
+        destinationFrom: products[0]?.destinationFrom,
+        destinationTo: products[0]?.destinationTo,
+        transactionId: session.id,
+        paymentStatus: 'Pending',
+        timestamp: new Date(),
       };
 
       // Save payment details to the database
@@ -213,59 +220,33 @@ app.post('/create-checkout-session', async (req, res) => {
 
 
 ////////
+// ticket Api
+app.get('/payment/:email', async (req, res) => {
+  try {
+    const email = req.params.email;
 
+    // Fetch payment data from the payment collection based on email
+    const result = await paymentCollection.find({ userEmail: email }).toArray();
 
-// app.post('/create-checkout-session', async (req, res) => {
-//   const {products} = req.body;
+    if (result.length === 0) {
+      return res.status(404).send({ message: "No payment records found for this email" });
+    }
 
-  
-// console.log(products)
- 
-//     const lineItems = products.map((product) => ({
-//       price_data: {
-//         currency: 'usd',
-//         product_data: {
-//           name: `${product.destinationFrom} to ${product.destinationTo} (${product.seatType})`,
-//         },
-//         unit_amount: product.totalPrice * 100, // Convert to cents
-//       },
-//       quantity: 1, // Assuming 1 quantity per product
-//     }));
-
-//     // Create a checkout session
-//     const session = await stripe.checkout.sessions.create({
-//       payment_method_types: ['card'],
-//       line_items: lineItems,
-//       mode: 'payment',
-//       success_url: `http://localhost:5173/success`,
-//       cancel_url: `http://localhost:5173/cancel`,
-//     });
-
-// res.json({id: session.id})
-  
-// });
+    // Send the result back to the frontend
+    res.send(result);
+  } catch (error) {
+    console.error("Error fetching payment:", error);
+    res.status(500).send({ message: "Internal Server Error" });
+  }
+});
 //
 
+app.get('/passenger-data',async(req,res)=>{
+  const result = await paymentCollection.find().toArray();
+  res.send(result)
+})
 
 
-
-//payment 
-// API to save payment details after successful payment
-// app.post('/payments', async (req, res) => {
-//   const payment = req.body;
-
-//   console.log("pay deatails",payment)
-
-//   try {
-//     // Insert payment details into the database
-//     const result = await paymentCollection.insertOne(payment);
-//     res.status(200).send({ message: 'Payment saved successfully', result });
-//   } catch (error) {
-//     console.error('Error saving payment data:', error);
-//     res.status(500).send({ message: 'Error saving payment data', error });
-//   }
-// });
-// paymentDB
 
       // Send a ping to confirm a successful connection
       await client.db("admin").command({ ping: 1 });
